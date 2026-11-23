@@ -1,8 +1,8 @@
-import { POWER_POINTS, advanceCycle, isPowerPoint, tileLuminance } from './board';
+import { CYCLE_MAX, POWER_POINTS, advanceCycle, isPowerPoint } from './board';
 import { isLegalMove, pieceAt } from './movement';
 import type { Cycle, GameState, Piece, Pos, Side, Winner } from './types';
 import { opposite } from './types';
-import { UNITS } from './units';
+import { UNITS, isElemental } from './units';
 
 export interface Battle {
   readonly attackerId: string;
@@ -45,24 +45,31 @@ export function applyMove(state: GameState, pieceId: string, to: Pos): MoveResul
 
 const isAlive = (p: Piece): boolean => p.hp > 0;
 
+/**
+ * Applies a fight's result. A summoned elemental fights once: win or lose it vanishes (and is
+ * never counted as fallen), so a square it won is left empty.
+ */
 export function resolveBattle(state: GameState, battle: Battle, outcome: BattleOutcome): GameState {
   const attacker = { ...requirePiece(state, battle.attackerId), hp: outcome.attackerHp };
   const defender = { ...requirePiece(state, battle.defenderId), hp: outcome.defenderHp };
   const attackerTakesSquare = isAlive(attacker) && !isAlive(defender);
   const fighters = [attackerTakesSquare ? { ...attacker, pos: battle.square } : attacker, defender];
   const others = state.pieces.filter((p) => p.id !== attacker.id && p.id !== defender.id);
-  const dead = fighters.filter((p) => !isAlive(p)).map((p) => ({ ...p, hp: 0, imprisoned: false }));
+  const stays = (p: Piece): boolean => isAlive(p) && !isElemental(p.kind);
+  const dead = fighters.filter((p) => !isAlive(p) && !isElemental(p.kind)).map((p) => ({ ...p, hp: 0, imprisoned: false }));
   return endTurn({
     ...state,
-    pieces: [...others, ...fighters.filter(isAlive)],
+    pieces: [...others, ...fighters.filter(stays)],
     fallen: [...state.fallen, ...dead],
   });
 }
 
-/** An imprisoned piece is freed once its tile reaches its own side's colour. */
+/**
+ * An imprisoned piece is freed once the luminosity cycle reaches the colour opposite to its
+ * side: a light piece at full dark, a dark piece at full light.
+ */
 function isReleased(piece: Piece, cycle: Cycle): boolean {
-  const home = piece.side === 'light' ? 1 : 0;
-  return tileLuminance(piece.pos, cycle) === home;
+  return cycle.level === (piece.side === 'light' ? 0 : CYCLE_MAX);
 }
 
 export const releasePrisoners = (pieces: readonly Piece[], cycle: Cycle): Piece[] =>

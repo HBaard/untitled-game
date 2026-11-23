@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { piece, stateWith } from '../core/testUtils';
-import { clickTile, finishBattle, initialUi } from './boardInput';
+import { applyMoveAction, clickTile, finishBattle, initialUi, planClick } from './boardInput';
 
 const k = piece('knight', 1, 1);
 const g = piece('goblin', 2, 1);
@@ -42,5 +42,24 @@ describe('clickTile', () => {
 
   it('finishBattle without a pending battle throws', () => {
     expect(() => finishBattle(ui0, { attackerHp: 1, defenderHp: 0 })).toThrow();
+  });
+});
+
+describe('planClick (network play)', () => {
+  it('turns a click on a highlighted square into a move action without applying it', () => {
+    const selected = clickTile(ui0, k.pos);
+    const r = planClick(selected, { col: 1, row: 2 });
+    expect(r).toEqual({ kind: 'move', action: { type: 'move', pieceId: k.id, to: { col: 1, row: 2 } } });
+    expect(selected.game.turn).toBe('light');
+  });
+
+  it('selection clicks stay local', () => {
+    expect(planClick(ui0, k.pos)).toEqual({ kind: 'select', ui: { ...ui0, selectedId: k.id } });
+  });
+
+  it('applyMoveAction plays the move, and rejects illegal ones', () => {
+    const ui = applyMoveAction(ui0, { type: 'move', pieceId: k.id, to: { col: 1, row: 2 } });
+    expect(ui.game.turn).toBe('dark');
+    expect(() => applyMoveAction(ui0, { type: 'move', pieceId: g.id, to: { col: 2, row: 2 } })).toThrow();
   });
 });

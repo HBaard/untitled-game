@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NO_INPUT, inputsFrom, isArenaKey } from './controls';
+import { NO_INPUT, inputsFrom, isArenaKey, localInput } from './controls';
 
 describe('controls', () => {
   it('maps WASD+G to light and IJKL+Ä to dark', () => {
@@ -10,6 +10,11 @@ describe('controls', () => {
       light: { ...NO_INPUT, down: true, right: true },
       dark: { ...NO_INPUT, down: true, left: true },
     });
+  });
+
+  it('localInput accepts either key set', () => {
+    expect(localInput(new Set(['KeyW', 'Quote']))).toEqual({ ...NO_INPUT, up: true, fire: true });
+    expect(localInput(new Set(['KeyJ', 'KeyD']))).toEqual({ ...NO_INPUT, left: true, right: true });
   });
 
   it('recognises only arena keys', () => {

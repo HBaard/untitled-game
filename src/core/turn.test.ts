@@ -65,20 +65,20 @@ describe('resolveBattle', () => {
 });
 
 describe('imprisonment', () => {
-  it('releases a light piece when its tile becomes fully light', () => {
-    const k = piece('knight', 4, 3, { imprisoned: true });
+  const freedAfter = (s: ReturnType<typeof stateWith>, id: string) => endTurn(s).pieces.find((p) => p.id === id)!.imprisoned;
+
+  it('frees a light piece when the cycle reaches full dark (the opposite colour)', () => {
+    const k = piece('knight', 0, 0, { imprisoned: true });
     const g = piece('goblin', 8, 8);
-    const almostLight = stateWith([k, g], { cycle: { level: 4, rising: true } });
-    expect(endTurn(almostLight).pieces.find((p) => p.id === k.id)!.imprisoned).toBe(false);
-    const darkening = stateWith([k, g], { cycle: { level: 4, rising: false } });
-    expect(endTurn(darkening).pieces.find((p) => p.id === k.id)!.imprisoned).toBe(true);
+    expect(freedAfter(stateWith([k, g], { cycle: { level: 1, rising: false } }), k.id)).toBe(false);
+    expect(freedAfter(stateWith([k, g], { cycle: { level: 4, rising: true } }), k.id)).toBe(true);
   });
 
-  it('never releases on a fixed square of the enemy colour', () => {
-    const g = piece('goblin', 0, 4, { imprisoned: true });
-    let s = stateWith([g, piece('knight', 8, 8)]);
-    for (let i = 0; i < 20; i++) s = endTurn(s);
-    expect(s.pieces.find((p) => p.id === g.id)!.imprisoned).toBe(true);
+  it('frees a dark piece when the cycle reaches full light, wherever it stands', () => {
+    const g = piece('goblin', 1, 0, { imprisoned: true });
+    const k = piece('knight', 8, 8);
+    expect(freedAfter(stateWith([g, k], { cycle: { level: 4, rising: true } }), g.id)).toBe(false);
+    expect(freedAfter(stateWith([g, k], { cycle: { level: 1, rising: false } }), g.id)).toBe(true);
   });
 });
 

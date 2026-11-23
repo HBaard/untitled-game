@@ -51,6 +51,21 @@
         cursor: pointer;
       }
       button:hover { background: #33294a; }
+      #spells {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        max-width: 576px;
+        width: 100%;
+        padding: 10px 12px;
+        background: var(--panel);
+        border: 1px solid #8a5cd8;
+        border-radius: 8px;
+      }
+      #spells[hidden] { display: none; }
+      #spell-actions { display: flex; gap: 4px; }
+      #spells button { margin: 0; border-color: #8a5cd8; }
+      #spell-prompt { font-size: 14px; color: #d8c4ff; min-height: 1.2em; }
       #arena-overlay {
         position: fixed;
         inset: 0;
@@ -96,6 +111,11 @@
   <body>
     <div id="status"></div>
     <canvas id="board"></canvas>
+    <div id="spells" hidden>
+      <div><strong id="spell-title">Spells</strong></div>
+      <div id="spell-prompt"></div>
+      <div id="spell-actions"></div>
+    </div>
     <div id="battle" hidden>
       <div id="battle-text"></div>
     </div>

@@ -1,10 +1,12 @@
-import type { ArenaFighter, ArenaState, Shot } from '../combat/arena';
-import { ARENA_W, FIGHTER_SIZE, SHOT_RADIUS } from '../combat/arena';
+import type { ArenaFighter, ArenaState } from '../combat/arena';
+import { ARENA_W, FIGHTER_SIZE } from '../combat/arena';
 import type { Boulder } from '../combat/boulders';
 import { BOULDER_HP } from '../combat/boulders';
 import type { Side } from '../core/types';
 import { UNITS } from '../core/units';
+import { drawElemental } from './elementals';
 import { SPRITE_CELL, nativeHeading, spriteCell } from './sprites';
+import { drawBurst, drawFire, drawImmunity, drawShot } from './projectiles';
 import { drawWeaponSwing } from './weapons';
 
 export interface ArenaLook {
@@ -14,8 +16,6 @@ export interface ArenaLook {
 }
 
 const SIDE_COLOR: Record<Side, string> = { light: '#3a6fd8', dark: '#c8402f' };
-const SHOT_COLOR: Record<Side, string> = { light: '#fff3a0', dark: '#d070ff' };
-const FIRE_COLOR = '#ff8a2a';
 const SPRITE_PX = 72;
 const SPECKLES = 14;
 
@@ -46,25 +46,18 @@ function drawBoulder(ctx: CanvasRenderingContext2D, b: Boulder): void {
   ctx.strokeRect(b.x + 1.5, b.y + 1.5, b.w - 3, b.h - 3);
 }
 
-function drawShot(ctx: CanvasRenderingContext2D, s: Shot): void {
-  ctx.beginPath();
-  ctx.arc(s.pos.x, s.pos.y, s.melts ? SHOT_RADIUS + 2 : SHOT_RADIUS, 0, Math.PI * 2);
-  ctx.fillStyle = s.melts ? FIRE_COLOR : SHOT_COLOR[s.owner];
-  ctx.fill();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = '#000';
-  ctx.stroke();
-}
-
-function drawFighter(ctx: CanvasRenderingContext2D, f: ArenaFighter, sheet: CanvasImageSource | null): void {
+function drawFighter(ctx: CanvasRenderingContext2D, f: ArenaFighter, sheet: CanvasImageSource | null, tick: number): void {
   const { x, y } = f.pos;
   const half = FIGHTER_SIZE / 2;
   ctx.beginPath();
   ctx.ellipse(x, y + half, half + 4, 7, 0, 0, Math.PI * 2);
   ctx.fillStyle = SIDE_COLOR[f.side];
   ctx.fill();
-  if (sheet) {
-    const { sx, sy } = spriteCell(f.form);
+  const cell = spriteCell(f.form);
+  if (!cell) {
+    drawElemental(ctx, f.form, x, y + half + 4, tick);
+  } else if (sheet) {
+    const { sx, sy } = cell;
     ctx.save();
     ctx.translate(x, 0);
     if (f.heading !== nativeHeading(f.form)) ctx.scale(-1, 1); // mirror so it always moves forward
@@ -121,10 +114,13 @@ export function drawArena(ctx: CanvasRenderingContext2D, arena: ArenaState, look
   ctx.fillStyle = look.floor;
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   arena.boulders.forEach((b) => drawBoulder(ctx, b));
-  drawFighter(ctx, arena.fighters.light, look.sprites);
-  drawFighter(ctx, arena.fighters.dark, look.sprites);
-  drawWeaponSwing(ctx, arena.fighters.light);
-  drawWeaponSwing(ctx, arena.fighters.dark);
+  arena.fires.forEach((f) => drawFire(ctx, f));
+  for (const f of [arena.fighters.light, arena.fighters.dark]) {
+    drawBurst(ctx, f);
+    drawFighter(ctx, f, look.sprites, arena.tick);
+    drawImmunity(ctx, f, FIGHTER_SIZE);
+    drawWeaponSwing(ctx, f);
+  }
   arena.shots.forEach((s) => drawShot(ctx, s));
   drawHud(ctx, arena.fighters.light);
   drawHud(ctx, arena.fighters.dark);

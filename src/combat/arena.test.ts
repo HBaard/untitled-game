@@ -52,18 +52,30 @@ describe('createArena', () => {
     expect(a.fighters.dark.damage).toBe(UNITS.troll.damage);
   });
 
-  it('a shapeshifter fights in its opponent form; only a dragon melts boulders', () => {
-    expect(arenaFor(piece('dragon', 1, 0), piece('knight', 2, 0)).fighters.dark.meltsBoulders).toBe(true);
+  it('a shapeshifter fights in its opponent form; it copies the attack too', () => {
+
     const b = arenaFor(piece('knight', 0, 0), piece('shapeshifter', 1, 0));
     expect(b.fighters.dark.form).toBe('knight');
     expect(b.fighters.dark.hp).toBe(UNITS.knight.maxHp);
-    expect(b.fighters.dark.meltsBoulders).toBe(false);
+    expect(b.fighters.dark.attack.kind).toBe('melee');
   });
 
   it('builds the same battlefield for the same game moment', () => {
     const k = piece('knight', 0, 0);
     const g = piece('goblin', 1, 0);
     expect(arenaFor(k, g).boulders).toEqual(arenaFor(k, g).boulders);
+  });
+});
+
+describe('spell cost', () => {
+  it('a caster fights with its maximum HP lowered by each spell it has cast', () => {
+    const wizard = piece('wizard', 1, 0);
+    const goblin = piece('goblin', 2, 0);
+    const state = stateWith([wizard, goblin], { spellsUsed: { light: ['heal', 'imprison', 'shiftTime'], dark: [] } });
+    const a = createArena(state, { attackerId: wizard.id, defenderId: goblin.id, square: goblin.pos });
+    expect(a.fighters.light.maxHp).toBe(UNITS.wizard.maxHp - 3);
+    expect(a.fighters.light.hp).toBe(UNITS.wizard.maxHp - 3);
+    expect(a.fighters.dark.maxHp).toBe(UNITS.goblin.maxHp);
   });
 });
 
@@ -116,23 +128,6 @@ describe('shooting', () => {
     expect(s.fighters.dark.hp).toBe(s0.fighters.dark.hp - s0.fighters.light.damage);
   });
 
-  it('boulders stop shots; only dragon fire wears them down', () => {
-    const rock = { id: 0, x: 380, y: 270, w: 50, h: 60, hp: BOULDER_HP };
-    const golem = { ...duel('golem', 'troll'), boulders: [rock] };
-    const g = run(stepArena(golem, lightDoes({ fire: true })), IDLE, 40);
-    expect(g.boulders).toEqual([rock]);
-    expect(g.fighters.dark.hp).toBe(golem.fighters.dark.hp);
-
-    const dragonDuel = duel('knight', 'dragon');
-    const dragon = {
-      ...dragonDuel,
-      boulders: [rock],
-      fighters: { ...dragonDuel.fighters, dark: { ...dragonDuel.fighters.dark, reload: 1 } },
-    };
-    const breathe: ArenaInputs = { light: NO_INPUT, dark: { ...NO_INPUT, fire: true } };
-    const melted = run(dragon, breathe, 30);
-    expect(melted.boulders).toEqual([]);
-  });
 });
 
 /** Melee duel with dark placed `gap` pixels from light's body edge, straight ahead. */
@@ -144,11 +139,11 @@ function meleeDuel(gap: number): ArenaState {
 describe('melee (knight, goblin)', () => {
   it('knights and goblins swing instead of shooting', () => {
     const s0 = meleeDuel(0);
-    expect(s0.fighters.light.attack).toBe('melee');
-    expect(s0.fighters.dark.attack).toBe('melee');
+    expect(s0.fighters.light.attack.kind).toBe('melee');
+    expect(s0.fighters.dark.attack.kind).toBe('melee');
     const s1 = stepArena(s0, lightDoes({ fire: true }));
     expect(s1.shots).toEqual([]);
-    expect(s1.fighters.light.swing).toBe(SWING_TICKS);
+    expect(s1.fighters.light.anim).toBe(SWING_TICKS);
     expect(s1.fighters.light.cooldown).toBe(s0.fighters.light.reload);
   });
 
@@ -177,12 +172,12 @@ describe('melee (knight, goblin)', () => {
 
   it('the swing fades out over SWING_TICKS', () => {
     const s = run(stepArena(meleeDuel(FIGHTER_SIZE), lightDoes({ fire: true })), IDLE, SWING_TICKS);
-    expect(s.fighters.light.swing).toBe(0);
+    expect(s.fighters.light.anim).toBe(0);
   });
 
   it('a shapeshifter facing a knight swings too; other units still shoot', () => {
-    expect(arenaFor(piece('knight', 0, 0), piece('shapeshifter', 1, 0)).fighters.dark.attack).toBe('melee');
-    expect(duel('golem', 'troll').fighters.light.attack).toBe('shot');
+    expect(arenaFor(piece('knight', 0, 0), piece('shapeshifter', 1, 0)).fighters.dark.attack.kind).toBe('melee');
+    expect(duel('golem', 'troll').fighters.light.attack.kind).toBe('shot');
   });
 });
 

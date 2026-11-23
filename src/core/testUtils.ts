@@ -16,5 +16,6 @@ export const stateWith = (pieces: Piece[], extra: Partial<GameState> = {}): Game
   turnNumber: 1,
   cycle: initialCycle,
   winner: null,
+  spellsUsed: { light: [], dark: [] },
   ...extra,
 });

@@ -84,9 +84,9 @@ const REACH: Record<Weapon, number> = { sword: HAND_OFFSET + 50, club: HAND_OFFS
 
 /** Sweeps the unit's weapon across the square in front while a swing is running. */
 export function drawWeaponSwing(ctx: Ctx, f: ArenaFighter): void {
-  if (f.swing <= 0) return;
+  if (f.attack.kind !== 'melee' || f.anim <= 0) return;
   const weapon = WEAPONS[f.form] ?? 'sword';
-  const progress = 1 - f.swing / SWING_TICKS;
+  const progress = 1 - f.anim / SWING_TICKS;
   const facing = Math.atan2(f.facing.y, f.facing.x);
   // Light swings clockwise, dark counter-clockwise, so the two read as mirror images.
   const dir = f.side === 'light' ? 1 : -1;
@@ -94,7 +94,7 @@ export function drawWeaponSwing(ctx: Ctx, f: ArenaFighter): void {
   const now = start + dir * 2 * SWING_ARC * Math.min(1, progress * 1.4);
   ctx.save();
   ctx.translate(f.pos.x, f.pos.y);
-  drawTrail(ctx, weapon, Math.min(start, now), Math.max(start, now), f.swing / SWING_TICKS, REACH[weapon]);
+  drawTrail(ctx, weapon, Math.min(start, now), Math.max(start, now), f.anim / SWING_TICKS, REACH[weapon]);
   ctx.rotate(now);
   ctx.translate(HAND_OFFSET, 0);
   if (weapon === 'sword') drawSword(ctx);

@@ -50,5 +50,6 @@ export function createInitialState(): GameState {
     turnNumber: 1,
     cycle: initialCycle,
     winner: null,
+    spellsUsed: { light: [], dark: [] },
   };
 }

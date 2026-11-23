@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   BOARD_SIZE, CYCLE_MAX, DARK_HOME, LIGHT_HOME, POWER_POINTS, advanceCycle, initialCycle,
-  invertCycle, isSpellImmune, tileKind, tileLuminance,
+  isSpellImmune, shiftTime, tileKind, tileLuminance,
 } from './board';
 import type { TileKind } from './board';
 import type { Pos } from './types';
@@ -44,10 +44,10 @@ describe('tileKind', () => {
 });
 
 describe('isSpellImmune', () => {
-  it('protects pieces on power points from enemy spells only', () => {
-    expect(isSpellImmune({ col: 4, row: 4 }, 'light', 'dark')).toBe(true);
-    expect(isSpellImmune({ col: 4, row: 4 }, 'light', 'light')).toBe(false);
-    expect(isSpellImmune({ col: 3, row: 4 }, 'light', 'dark')).toBe(false);
+  it('protects every piece on a power point, and nothing elsewhere', () => {
+    expect(isSpellImmune({ col: 4, row: 4 })).toBe(true);
+    expect(isSpellImmune({ col: 0, row: 4 })).toBe(true);
+    expect(isSpellImmune({ col: 3, row: 4 })).toBe(false);
   });
 });
 
@@ -62,8 +62,11 @@ describe('cycle', () => {
     expect(levels).toEqual([0, 1, 2, 3, 4, 5, 4, 3, 2, 1, 0, 1]);
   });
 
-  it('invert mirrors the level and direction', () => {
-    expect(invertCycle({ level: 1, rising: true })).toEqual({ level: CYCLE_MAX - 1, rising: false });
+  it('Shift Time reverses the direction, or jumps to the other extreme at a peak', () => {
+    expect(shiftTime({ level: 2, rising: true })).toEqual({ level: 2, rising: false });
+    expect(shiftTime({ level: 2, rising: false })).toEqual({ level: 2, rising: true });
+    expect(shiftTime({ level: CYCLE_MAX, rising: false })).toEqual({ level: 0, rising: true });
+    expect(shiftTime({ level: 0, rising: true })).toEqual({ level: CYCLE_MAX, rising: false });
   });
 
   it('luminance follows tile kind', () => {

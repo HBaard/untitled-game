@@ -1,4 +1,4 @@
-import type { Cycle, Pos, Side } from './types';
+import type { Cycle, Pos } from './types';
 
 export const BOARD_SIZE = 9;
 const CENTER = 4;
@@ -46,9 +46,8 @@ export function tileKind(p: Pos): TileKind {
   return (p.col + p.row) % 2 === 0 ? 'light' : 'dark';
 }
 
-/** A piece on a power point ignores spells cast by the other side. */
-export const isSpellImmune = (pos: Pos, targetSide: Side, casterSide: Side): boolean =>
-  targetSide !== casterSide && isPowerPoint(pos);
+/** A piece on a power point is immune to all magic, friendly or not. */
+export const isSpellImmune = (pos: Pos): boolean => isPowerPoint(pos);
 
 export const initialCycle: Cycle = { level: 3, rising: true };
 
@@ -59,8 +58,15 @@ export function advanceCycle(c: Cycle): Cycle {
   return { level: c.level + (c.rising ? 1 : -1), rising: c.rising };
 }
 
-/** The Shift spell: mirror the phase so light becomes dark and vice versa. */
-export const invertCycle = (c: Cycle): Cycle => ({ level: CYCLE_MAX - c.level, rising: !c.rising });
+/**
+ * The Shift Time spell: squares getting lighter start getting darker and vice versa.
+ * At a peak (fully light or fully dark) it jumps straight to the opposite extreme.
+ */
+export function shiftTime(c: Cycle): Cycle {
+  if (c.level >= CYCLE_MAX) return { level: 0, rising: true };
+  if (c.level <= 0) return { level: CYCLE_MAX, rising: false };
+  return { level: c.level, rising: !c.rising };
+}
 
 /** 0 = fully dark, 1 = fully light. */
 export function tileLuminance(p: Pos, cycle: Cycle): number {

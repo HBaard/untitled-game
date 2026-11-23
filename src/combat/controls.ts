@@ -41,3 +41,15 @@ export const inputsFrom = (pressed: ReadonlySet<string>): ArenaInputs => ({
   light: inputFor(pressed, 'light'),
   dark: inputFor(pressed, 'dark'),
 });
+
+/** Network play: each player has the keyboard to themselves, so either key set works. */
+export function localInput(pressed: ReadonlySet<string>): ArenaInput {
+  const { light: a, dark: b } = inputsFrom(pressed);
+  return {
+    left: a.left || b.left,
+    up: a.up || b.up,
+    down: a.down || b.down,
+    right: a.right || b.right,
+    fire: a.fire || b.fire,
+  };
+}

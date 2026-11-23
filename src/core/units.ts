@@ -57,4 +57,14 @@ export const UNITS: Readonly<Record<PieceKind, UnitStats>> = {
   banshee: unit({ name: 'Banshee', side: 'dark', combat: [3, 3, 6, 1], move: 'fly', range: 3 }),
   manticore: unit({ name: 'Manticore', side: 'dark', combat: [3, 1, 1, 3], move: 'ground', range: 4 }),
   goblin: unit({ name: 'Goblin', side: 'dark', combat: [1, 1, 6, 6], move: 'ground', range: 3 }),
+  // Summoned onto the board by the Summon Elemental spell; they fight for whichever side summoned
+  // them (the side here is only a default) and vanish after their first fight.
+  fireElemental: unit({ name: 'Fire Elemental', side: 'light', combat: [4, 5, 4, 2], move: 'fly', range: 4 }),
+  waterElemental: unit({ name: 'Water Elemental', side: 'light', combat: [5, 3, 4, 4], move: 'fly', range: 4 }),
+  airElemental: unit({ name: 'Air Elemental', side: 'light', combat: [3, 4, 5, 5], move: 'fly', range: 4 }),
+  earthElemental: unit({ name: 'Earth Elemental', side: 'light', combat: [6, 5, 1, 2], move: 'fly', range: 4 }),
 };
+
+export const ELEMENTALS: readonly PieceKind[] = ['fireElemental', 'waterElemental', 'airElemental', 'earthElemental'];
+
+export const isElemental = (kind: PieceKind): boolean => ELEMENTALS.includes(kind);

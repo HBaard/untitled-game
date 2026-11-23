@@ -8,11 +8,12 @@ export interface Rect {
 
 export interface Boulder extends Rect {
   readonly id: number;
-  /** Hits from a boulder-melting attack (dragon fire) it can take. */
+  /** Wear left; dragon fire and hurled boulders take their base damage off per hit. */
   readonly hp: number;
 }
 
-export const BOULDER_HP = 3;
+/** Worn down by the attacker's base damage per hit: dragon (6) in 2 hits, golem/troll (5) in 3. */
+export const BOULDER_HP = 12;
 export const BOULDER_CELL = 64;
 export const BOULDER_COUNT = 9;
 /** Cell columns kept free of boulders at each end, so both fighters start in the open. */
