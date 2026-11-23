@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import jpeg from 'jpeg-js';
 import { PNG } from 'pngjs';
 
-const SRC = process.argv[2] ?? 'Gemini_Generated_Image_onlqabonlqabonlq.jpeg';
+const SRC = process.argv[2] ?? 'art/sprite-sheet-source.jpeg';
 const OUT = process.argv[3] ?? 'src/assets/sprites.png';
 const CELL = 64;
 const FIT = 60;

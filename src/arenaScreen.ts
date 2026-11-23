@@ -23,12 +23,12 @@ const arenaUsesMouse = (a: ArenaState): boolean => a.steering === 'fps';
 
 function drawCaptureHint(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-  ctx.fillRect(ARENA_W / 2 - 230, 150, 460, 56);
+  ctx.fillRect(ARENA_W / 2 - 230, 310, 460, 56);
   ctx.fillStyle = '#ffe48a';
   ctx.font = 'bold 20px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('Click here to aim with the mouse', ARENA_W / 2, 178);
+  ctx.fillText('Click here to aim with the mouse', ARENA_W / 2, 338);
 }
 
 /**

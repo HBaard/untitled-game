@@ -4,7 +4,7 @@ import type { Piece } from '../core/types';
 import { UNITS } from '../core/units';
 import type { ArenaState } from './arena';
 import {
-  ARENA_H, ARENA_W, FIGHTER_SIZE, MOVE_SPEED, OUTRO_TICKS, SWING_TICKS, arenaOutcome, createArena, isFinished,
+  ARENA_H, ARENA_W, COUNTDOWN_TICKS, FIGHTER_SIZE, GO_TICKS, TICK_HZ, countdownLabel, MOVE_SPEED, OUTRO_TICKS, SWING_TICKS, arenaOutcome, createArena, isFinished,
   stepArena,
 } from './arena';
 import { BOULDER_HP } from './boulders';
@@ -17,8 +17,11 @@ const lightDoes = (i: Partial<ArenaInput>): ArenaInputs => ({ light: { ...NO_INP
 
 function arenaFor(attacker: Piece, defender: Piece): ArenaState {
   const state = stateWith([attacker, defender]);
-  return createArena(state, { attackerId: attacker.id, defenderId: defender.id, square: defender.pos });
+  return skipCountdown(createArena(state, { attackerId: attacker.id, defenderId: defender.id, square: defender.pos }));
 }
+
+/** Most tests are about the fight itself, so they start right after "GO". */
+const skipCountdown = (a: ArenaState): ArenaState => ({ ...a, tick: COUNTDOWN_TICKS });
 
 /** Light at the centre-left, dark straight to its right, nothing in between. */
 function duel(lightKind: Piece['kind'], darkKind: Piece['kind']): ArenaState {
@@ -266,5 +269,32 @@ describe('fps steering (online 3D: mouse aims, keys walk and strafe)', () => {
     expect(left.fighters.light.facing).toEqual({ x: 0, y: -1 });
     const junk = stepArena(fps(duel('archer', 'goblin')), lightDoes({ turn: 0.5 }));
     expect(junk.fighters.light.angle).toBe(0);
+  });
+});
+
+describe('countdown', () => {
+  const fresh = (): ArenaState => {
+    const l = piece('archer', 0, 0);
+    const d = piece('manticore', 1, 0);
+    return createArena(stateWith([l, d]), { attackerId: l.id, defenderId: d.id, square: d.pos });
+  };
+
+  it('nobody moves or fires until the countdown is over', () => {
+    const go = { light: { ...NO_INPUT, right: true, fire: true }, dark: { ...NO_INPUT, left: true, fire: true } };
+    const waited = run(fresh(), go, COUNTDOWN_TICKS);
+    expect(waited.fighters).toEqual(fresh().fighters);
+    expect(waited.shots).toEqual([]);
+    const started = stepArena(waited, go);
+    expect(started.fighters.light.pos.x).toBe(fresh().fighters.light.pos.x + MOVE_SPEED);
+    expect(started.shots).toHaveLength(2);
+  });
+
+  it('counts 3, 2, 1, then shows GO! briefly', () => {
+    expect(countdownLabel(0)).toBe('3');
+    expect(countdownLabel(TICK_HZ - 1)).toBe('3');
+    expect(countdownLabel(TICK_HZ)).toBe('2');
+    expect(countdownLabel(2 * TICK_HZ)).toBe('1');
+    expect(countdownLabel(COUNTDOWN_TICKS)).toBe('GO!');
+    expect(countdownLabel(COUNTDOWN_TICKS + GO_TICKS)).toBeNull();
   });
 });

@@ -15,6 +15,7 @@ import { ARENA_H, ARENA_W, FIGHTER_SIZE, distSq, fighterRect, heal, hurt } from 
 import { advanceShot, makeShot, tickFires } from './shots';
 import { directionOf, startAngle, strafe, turn, turnBy, walk } from './steering';
 
+import { TICK_HZ } from './field';
 export { ARENA_H, ARENA_W, FIGHTER_SIZE, TICK_HZ } from './field';
 export type { ArenaFighter, Fire, Shot, Vec } from './field';
 
@@ -26,6 +27,10 @@ export const RELOAD_SCALE = 8;
 export const SWING_TICKS = 12;
 /** Ticks a phoenix blast or banshee scream ring stays visible. */
 export const BURST_TICKS = 20;
+/** 3 .. 2 .. 1: one second each, during which nobody can move or attack. */
+export const COUNTDOWN_TICKS = 3 * TICK_HZ;
+/** How long "GO!" stays up once the fight is on. */
+export const GO_TICKS = TICK_HZ / 2;
 /** Ticks the result stays on screen before the arena closes. */
 export const OUTRO_TICKS = 90;
 const START_INSET = 60;
@@ -222,7 +227,7 @@ const someoneFell = (f: Fighters): boolean => f.light.hp <= 0 || f.dark.hp <= 0;
 /** One fixed timestep. Pure: same state and inputs always give the same result. */
 export function stepArena(s: ArenaState, inputs: ArenaInputs): ArenaState {
   const tick = s.tick + 1;
-  if (s.endedAt !== null) return { ...s, tick };
+  if (s.endedAt !== null || tick <= COUNTDOWN_TICKS) return { ...s, tick };
   const light0 = moveFighter(s.steering, s.fighters.light, inputs.light, obstaclesFor(s.fighters.light, s.boulders, s.fighters.dark));
   const dark0 = moveFighter(s.steering, s.fighters.dark, inputs.dark, obstaclesFor(s.fighters.dark, s.boulders, light0));
   const la = attack(light0, inputs.light, s.nextId);
@@ -232,6 +237,12 @@ export function stepArena(s: ArenaState, inputs: ArenaInputs): ArenaState {
   const start: Field = { fighters, boulders: s.boulders, shots: [], fires: s.fires, nextId: s.nextId + 2 };
   const field = tickFires([...s.shots, ...newShots].reduce(advanceShot, start));
   return { ...s, ...field, tick, endedAt: someoneFell(field.fighters) ? tick : null };
+}
+
+/** What the countdown shows on this tick: "3", "2", "1", then "GO!" briefly; null once fighting. */
+export function countdownLabel(tick: number): string | null {
+  if (tick < COUNTDOWN_TICKS) return String(Math.ceil((COUNTDOWN_TICKS - tick) / TICK_HZ));
+  return tick < COUNTDOWN_TICKS + GO_TICKS ? 'GO!' : null;
 }
 
 export const isFinished = (s: ArenaState): boolean =>

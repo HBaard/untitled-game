@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { piece, stateWith } from '../core/testUtils';
 import type { PieceKind } from '../core/types';
 import type { ArenaState, Vec } from './arena';
-import { ARENA_H, ARENA_W, FIGHTER_SIZE, createArena, stepArena } from './arena';
+import { ARENA_H, ARENA_W, COUNTDOWN_TICKS, FIGHTER_SIZE, createArena, stepArena } from './arena';
 import type { ShotAttack } from './attacks';
 import { ATTACKS, BURST_RADIUS, FLAME_NARROW, FLAME_RANGE, PHOENIX_IMMUNITY } from './attacks';
 import type { Boulder } from './boulders';
@@ -23,6 +23,7 @@ function duel(light: PieceKind, dark: PieceKind, lightAt: Vec, darkAt: Vec, boul
   const a = createArena(stateWith([l, d]), { attackerId: l.id, defenderId: d.id, square: d.pos });
   return {
     ...a,
+    tick: COUNTDOWN_TICKS, // start right after "GO"
     boulders,
     fighters: { light: { ...a.fighters.light, pos: lightAt }, dark: { ...a.fighters.dark, pos: darkAt } },
   };

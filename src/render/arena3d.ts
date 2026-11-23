@@ -3,7 +3,7 @@ import { ARENA_H, ARENA_W, BURST_TICKS, SWING_TICKS } from '../combat/arena';
 import type { Side } from '../core/types';
 import { opposite } from '../core/types';
 import type { ArenaLook } from './arenaView';
-import { SIDE_COLOR, drawField, drawResult, fighterName } from './arenaView';
+import { SIDE_COLOR, drawCountdown, drawField, drawResult, fighterName } from './arenaView';
 import { billboardsFor, drawBillboards } from './billboards';
 import type { Frame, Lens } from './raster3d';
 import { makeFrame, parseRgb, rasterize } from './raster3d';
@@ -145,6 +145,7 @@ function drawView(ctx: CanvasRenderingContext2D, arena: ArenaState, look: ArenaL
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(s.canvas, box.x, box.y, box.w, box.h);
   drawOverlays(ctx, me, box, arena.tick);
+  drawCountdown(ctx, arena.tick, box.x + box.w / 2, box.y + box.h / 2, Math.min(box.w, box.h) * 0.3);
 }
 
 const MINIMAP_SCALE = STRIP_H / ARENA_H;

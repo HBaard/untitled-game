@@ -1,5 +1,5 @@
 import type { ArenaFighter, ArenaState } from '../combat/arena';
-import { ARENA_H, ARENA_W, FIGHTER_SIZE } from '../combat/arena';
+import { ARENA_H, ARENA_W, FIGHTER_SIZE, TICK_HZ, countdownLabel } from '../combat/arena';
 import type { Boulder } from '../combat/boulders';
 import { BOULDER_HP } from '../combat/boulders';
 import type { Side } from '../core/types';
@@ -116,6 +116,26 @@ export function drawResult(ctx: CanvasRenderingContext2D, a: ArenaState): void {
   ctx.fillText(resultText(a), ARENA_W / 2, ctx.canvas.height / 2);
 }
 
+/** "3", "2", "1", "GO!" centred at (x, y): each number pops in large and settles. */
+export function drawCountdown(ctx: CanvasRenderingContext2D, tick: number, x: number, y: number, size: number): void {
+  const label = countdownLabel(tick);
+  if (!label) return;
+  const go = label === 'GO!';
+  const settle = (tick % TICK_HZ) / TICK_HZ;
+  const scale = go ? 1.15 : 1.5 - 0.5 * Math.min(1, settle * 3);
+  ctx.save();
+  ctx.font = `900 ${Math.round(size * scale)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = size / 8;
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+  ctx.strokeText(label, x, y);
+  ctx.fillStyle = go ? '#7dff6a' : '#ffe48a';
+  ctx.fillText(label, x, y);
+  ctx.restore();
+}
+
 /** Everything on the battlefield, at arena scale (the 3D view reuses it as a minimap). */
 export function drawField(ctx: CanvasRenderingContext2D, arena: ArenaState, look: ArenaLook): void {
   ctx.fillStyle = look.floor;
@@ -135,5 +155,6 @@ export function drawArena(ctx: CanvasRenderingContext2D, arena: ArenaState, look
   drawField(ctx, arena, look);
   drawHud(ctx, arena.fighters.light);
   drawHud(ctx, arena.fighters.dark);
+  drawCountdown(ctx, arena.tick, ARENA_W / 2, ARENA_H / 2, 140);
   if (arena.endedAt !== null) drawResult(ctx, arena);
 }
