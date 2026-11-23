@@ -2,12 +2,15 @@ import type { MoveAction } from '../app/boardInput';
 import type { ArenaInput } from '../combat/controls';
 import type { SpellCast } from '../core/spells';
 import type { Side } from '../core/types';
+import type { ArenaViewMode } from '../render/arenaView';
 
 /** Board-level actions. The server echoes them to both players in one order, and both apply them. */
 export type GameAction =
   | MoveAction
   | { readonly type: 'spell'; readonly cast: SpellCast }
-  | { readonly type: 'newGame' };
+  | { readonly type: 'newGame' }
+  /** Top-down or first-person arena; both players must fight with the same steering. */
+  | { readonly type: 'arenaView'; readonly view: ArenaViewMode };
 
 export type ClientMessage =
   | { readonly type: 'action'; readonly action: GameAction }

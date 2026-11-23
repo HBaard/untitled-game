@@ -1,5 +1,5 @@
 import type { ArenaFighter, ArenaState } from '../combat/arena';
-import { ARENA_W, FIGHTER_SIZE } from '../combat/arena';
+import { ARENA_H, ARENA_W, FIGHTER_SIZE } from '../combat/arena';
 import type { Boulder } from '../combat/boulders';
 import { BOULDER_HP } from '../combat/boulders';
 import type { Side } from '../core/types';
@@ -13,9 +13,15 @@ export interface ArenaLook {
   readonly sprites: CanvasImageSource | null;
   /** Floor colour: the board square's colour at the moment of battle. */
   readonly floor: string;
+  /** Top-down, or first-person ("Wolfenstein") views. */
+  readonly view: ArenaViewMode;
+  /** Online: whose eyes the 3D view shows. null = both, split screen (hot-seat). */
+  readonly viewer: Side | null;
 }
 
-const SIDE_COLOR: Record<Side, string> = { light: '#3a6fd8', dark: '#c8402f' };
+export type ArenaViewMode = '2d' | '3d';
+
+export const SIDE_COLOR: Record<Side, string> = { light: '#3a6fd8', dark: '#c8402f' };
 const SPRITE_PX = 72;
 const SPECKLES = 14;
 
@@ -74,7 +80,7 @@ function drawFighter(ctx: CanvasRenderingContext2D, f: ArenaFighter, sheet: Canv
   }
 }
 
-const fighterName = (f: ArenaFighter): string =>
+export const fighterName = (f: ArenaFighter): string =>
   f.form === f.pieceKind ? UNITS[f.pieceKind].name : `${UNITS[f.pieceKind].name} (as ${UNITS[f.form].name})`;
 
 function drawHud(ctx: CanvasRenderingContext2D, f: ArenaFighter): void {
@@ -100,7 +106,7 @@ function resultText(a: ArenaState): string {
   return `${light.hp > 0 ? 'Light' : 'Dark'} wins!`;
 }
 
-function drawResult(ctx: CanvasRenderingContext2D, a: ArenaState): void {
+export function drawResult(ctx: CanvasRenderingContext2D, a: ArenaState): void {
   ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
   ctx.fillRect(0, ctx.canvas.height / 2 - 40, ARENA_W, 80);
   ctx.fillStyle = '#ffe48a';
@@ -110,9 +116,10 @@ function drawResult(ctx: CanvasRenderingContext2D, a: ArenaState): void {
   ctx.fillText(resultText(a), ARENA_W / 2, ctx.canvas.height / 2);
 }
 
-export function drawArena(ctx: CanvasRenderingContext2D, arena: ArenaState, look: ArenaLook): void {
+/** Everything on the battlefield, at arena scale (the 3D view reuses it as a minimap). */
+export function drawField(ctx: CanvasRenderingContext2D, arena: ArenaState, look: ArenaLook): void {
   ctx.fillStyle = look.floor;
-  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.fillRect(0, 0, ARENA_W, ARENA_H);
   arena.boulders.forEach((b) => drawBoulder(ctx, b));
   arena.fires.forEach((f) => drawFire(ctx, f));
   for (const f of [arena.fighters.light, arena.fighters.dark]) {
@@ -122,6 +129,10 @@ export function drawArena(ctx: CanvasRenderingContext2D, arena: ArenaState, look
     drawWeaponSwing(ctx, f);
   }
   arena.shots.forEach((s) => drawShot(ctx, s));
+}
+
+export function drawArena(ctx: CanvasRenderingContext2D, arena: ArenaState, look: ArenaLook): void {
+  drawField(ctx, arena, look);
   drawHud(ctx, arena.fighters.light);
   drawHud(ctx, arena.fighters.dark);
   if (arena.endedAt !== null) drawResult(ctx, arena);

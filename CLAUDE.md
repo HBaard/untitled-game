@@ -85,12 +85,17 @@ Original browser game in the style of the 1983 classic (own name TBD, own art/la
 - `src/app/` - pure UI state transitions (e.g. boardInput click handling). Unit tested.
 - `src/render/` - canvas drawing only. `sprites.ts` maps piece kinds to atlas cells; falls back to text glyphs if the sheet hasn't loaded.
 - `src/combat/` - pure fixed-timestep (60 Hz) arena sim: `arena.ts` (create/step/outcome), `field.ts` (shared types, hurt/heal), `attacks.ts` (per-unit attack table), `shots.ts` (projectiles, bouncing, fire), `boulders.ts` (seeded placement, PRNG), `controls.ts` (key codes -> per-tick inputs). Unit tested.
-- `src/arenaScreen.ts` - popup overlay, real-time loop and keyboard listeners; `src/render/arenaView.ts` draws it.
+- `src/arenaScreen.ts` - popup overlay, real-time loop and keyboard listeners; `src/render/arenaView.ts` draws it top-down, `src/render/arena3d.ts` first-person (raycasting: `raycast.ts` pure ray/rect + projection math, unit tested; `raster3d.ts` walls/floor/ceiling pixels; `billboards.ts` z-buffered sprites).
 - `src/net/` - network play: `protocol.ts` (messages), `lockstep.ts` (pure per-tick input buffer, unit tested), `onlineArena.ts` (arena driver + input book), `connection.ts` (WebSocket).
 - `server/` - plain-JS Node server (`server.mjs`: static dist/ + WebSocket relay on /ws; `room.mjs`: pure seat logic, unit tested).
 - `src/main.ts` - DOM wiring; hot-seat or online depending on the page.
 - `src/core/spells.ts` - the 7 spells (pure, unit tested); `src/app/spellInput.ts` - aiming spells; `src/app/spellWheel.ts` - the spell wheel's contents and layout.
 - Planned: AI.
+
+## 3D arena (Wolfenstein-style first-person view)
+- Toggle with the "Arena: 2D/3D" button under the board. It's a game setting sent as a `GameAction` (`{type:'arenaView'}`) so online both clients switch together; reset to 2D on online 'start'.
+- Steering (`ArenaState.steering`, `src/combat/steering.ts`): 2D = 'compass'. Hot-seat 3D = 'tank' (one keyboard): up/down walk, left/right turn TURN_STEP (16) of 1024 table directions per tick. Online 3D = 'fps', a mouse-aimed shooter: click the arena to capture the pointer (`src/mouseAim.ts`, Esc frees it), mouse turns, W/S walk, A/D strafe (diagonals x SQRT1_2), left button (or G) fires. Mouse turn travels in `ArenaInput.turn` as whole table steps (MOUSE_STEPS_PER_PX 0.5, remainder carried); the online driver sends it on one tick only when catching up several. Shots fly along the facing. The direction table is built by repeated angle-halving with sqrt only (determinism rule).
+- Screen: hot-seat split screen (light left, dark right) 960x420 views rendered at half resolution, minimap + HP/reload panels in the 220px strip below; online shows only your own view full width. Walls = arena edge (brick) + boulders (stone, glowing as worn); all walls WALL_H 64, eye at 32, so nothing shows over a wall.
 
 ## Rules / Constraints
 - Keep functions small and focused

@@ -10,6 +10,7 @@ import {
 import type { WheelSlot } from './app/spellWheel';
 import { closeWheel, slotAt, wheelSlots } from './app/spellWheel';
 import type { BattleSummary, BoardUi } from './app/boardInput';
+import type { Steering } from './combat/arena';
 import { arenaOutcome, createArena } from './combat/arena';
 import { CYCLE_MAX, tileLuminance } from './core/board';
 import { createInitialState } from './core/setup';
@@ -22,6 +23,7 @@ import type { Connection } from './net/connection';
 import { connect, isOnlinePage } from './net/connection';
 import { InputBook, onlineDriver } from './net/onlineArena';
 import type { GameAction, ServerMessage } from './net/protocol';
+import type { ArenaViewMode } from './render/arenaView';
 import { BOARD_PX, TILE, drawBoard, lerpColor, pixelToTile } from './render/boardView';
 import { loadSpriteSheet } from './render/sprites';
 
@@ -35,6 +37,7 @@ const spellPanel = document.querySelector<HTMLElement>('#spells')!;
 const spellTitle = document.querySelector<HTMLElement>('#spell-title')!;
 const spellActions = document.querySelector<HTMLElement>('#spell-actions')!;
 const spellPromptEl = document.querySelector<HTMLElement>('#spell-prompt')!;
+const arenaViewButton = document.querySelector<HTMLButtonElement>('#arena-view')!;
 
 canvas.width = BOARD_PX;
 canvas.height = BOARD_PX;
@@ -55,6 +58,8 @@ let sprites: HTMLImageElement | null = null;
 let gameNumber = 0;
 let stopArena: (() => void) | null = null;
 let online: Online | null = null;
+/** Top-down or first-person arena; a game setting, so online both players switch together. */
+let arenaView: ArenaViewMode = '2d';
 
 function describeGame(state: BoardUi['game']): string {
   if (state.winner) return state.winner === 'draw' ? 'Draw!' : `${state.winner.toUpperCase()} wins!`;
@@ -133,11 +138,19 @@ function arenaDriver(arenaId: number): ArenaDriver {
 function startBattle(battle: Battle): void {
   const arenaId = gameNumber * 10_000 + ui.game.turnNumber;
   const floor = lerpColor(tileLuminance(battle.square, ui.game.cycle));
-  stopArena = runArena(createArena(ui.game, battle), { sprites, floor }, arenaDriver(arenaId), (final) => {
+  const arena = createArena(ui.game, battle, steering());
+  const look = { sprites, floor, view: arenaView, viewer: online?.side ?? null };
+  stopArena = runArena(arena, look, arenaDriver(arenaId), (final) => {
     stopArena = null;
     online?.book.close(arenaId);
     setUi(finishBattle(ui, arenaOutcome(final)!));
   });
+}
+
+/** Online 3D is a mouse-aimed shooter; hot-seat 3D shares one keyboard, so it turns with keys. */
+function steering(): Steering {
+  if (arenaView === '2d') return 'compass';
+  return online ? 'fps' : 'tank';
 }
 
 /** Every board change goes through here, so a new attack always opens the arena. */
@@ -157,6 +170,7 @@ function newGame(): void {
 
 function applyAction(action: GameAction): void {
   if (action.type === 'newGame') return newGame();
+  if (action.type === 'arenaView') return setArenaView(action.view);
   try {
     setUi(action.type === 'spell' ? applySpellCast(ui, action.cast) : applyMoveAction(ui, action));
   } catch (err) {
@@ -179,17 +193,38 @@ function play(r: ClickResult): void {
   else submit({ type: 'spell', cast: r.cast });
 }
 
-function showOnlineKeys(side: Side): void {
-  arenaHelp.innerHTML = `<span>You are the ${side.toUpperCase()} fighter: `
-    + '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> (or <kbd>I</kbd><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd>) move · '
-    + '<kbd>G</kbd> (or <kbd>Ä</kbd>) fire</span>';
+const keys = (...k: string[]): string => k.map((c) => `<kbd>${c}</kbd>`).join('');
+
+/** In 3D, up/down walk forwards/backwards and left/right turn. */
+function moveHelp(up: string, left: string, down: string, right: string): string {
+  return arenaView === '3d'
+    ? `${keys(up, down)} walk · ${keys(left, right)} turn`
+    : `${keys(up, left, down, right)} move`;
+}
+
+function showArenaKeys(): void {
+  const side = online?.side;
+  const shooter = side && arenaView === '3d'
+    ? `<span>You are the ${side.toUpperCase()} fighter: click the arena to capture the mouse (${keys('Esc')} frees it) · `
+      + `mouse aims · ${keys('W', 'S')} forward/back · ${keys('A', 'D')} strafe · left click fires</span>`
+    : null;
+  arenaHelp.innerHTML = shooter ?? (side
+    ? `<span>You are the ${side.toUpperCase()} fighter: ${moveHelp('W', 'A', 'S', 'D')} · ${keys('G')} fire</span>`
+    : `<span>Light: ${moveHelp('W', 'A', 'S', 'D')} · ${keys('G')} fire</span>`
+      + `<span>Dark: ${moveHelp('I', 'J', 'K', 'L')} · ${keys('Ä')} fire</span>`);
+  arenaViewButton.textContent = arenaView === '3d' ? 'Arena: 3D first-person' : 'Arena: 2D top-down';
+}
+
+function setArenaView(view: ArenaViewMode): void {
+  arenaView = view;
+  showArenaKeys();
 }
 
 function onServerMessage(o: Online, msg: ServerMessage): void {
   switch (msg.type) {
     case 'welcome':
       o.side = msg.side;
-      showOnlineKeys(msg.side);
+      showArenaKeys();
       break;
     case 'full':
       o.notice = 'This game already has two players.';
@@ -197,6 +232,7 @@ function onServerMessage(o: Online, msg: ServerMessage): void {
     case 'start':
       o.ready = true;
       o.notice = null;
+      setArenaView('2d'); // a lone player may have toggled it: start both in step
       newGame();
       return;
     case 'opponentLeft':
@@ -253,7 +289,13 @@ document.querySelector('#new-game')!.addEventListener('click', () => {
   submit({ type: 'newGame' });
 });
 
+arenaViewButton.addEventListener('click', () => {
+  if (ui.pendingBattle || (online && !online.ready)) return;
+  submit({ type: 'arenaView', view: arenaView === '3d' ? '2d' : '3d' });
+});
+
 if (isOnlinePage()) goOnline();
+showArenaKeys();
 render();
 void loadSpriteSheet().then((img) => {
   sprites = img;

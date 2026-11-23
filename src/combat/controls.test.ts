@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NO_INPUT, inputsFrom, isArenaKey, localInput } from './controls';
+import { NO_INPUT, inputsFrom, isArenaKey, keysOnly, localInput } from './controls';
 
 describe('controls', () => {
   it('maps WASD+G to light and IJKL+Ä to dark', () => {
@@ -13,8 +13,15 @@ describe('controls', () => {
   });
 
   it('localInput accepts either key set', () => {
-    expect(localInput(new Set(['KeyW', 'Quote']))).toEqual({ ...NO_INPUT, up: true, fire: true });
-    expect(localInput(new Set(['KeyJ', 'KeyD']))).toEqual({ ...NO_INPUT, left: true, right: true });
+    expect(localInput(keysOnly(new Set(['KeyW', 'Quote'])))).toEqual({ ...NO_INPUT, up: true, fire: true });
+    expect(localInput(keysOnly(new Set(['KeyJ', 'KeyD'])))).toEqual({ ...NO_INPUT, left: true, right: true });
+  });
+
+  it('localInput adds the mouse: left button fires, movement turns (consumed once)', () => {
+    let pending = 7;
+    const mouse = { pressed: new Set<string>(), mouseFire: true, takeTurn: () => { const t = pending; pending = 0; return t; } };
+    expect(localInput(mouse)).toEqual({ ...NO_INPUT, fire: true, turn: 7 });
+    expect(localInput(mouse).turn).toBe(0);
   });
 
   it('recognises only arena keys', () => {

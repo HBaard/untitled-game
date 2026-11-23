@@ -13,6 +13,7 @@ import type { ArenaInput, ArenaInputs } from './controls';
 import type { ArenaFighter, Field, Fighters, Shot, Vec } from './field';
 import { ARENA_H, ARENA_W, FIGHTER_SIZE, distSq, fighterRect, heal, hurt } from './field';
 import { advanceShot, makeShot, tickFires } from './shots';
+import { directionOf, startAngle, strafe, turn, turnBy, walk } from './steering';
 
 export { ARENA_H, ARENA_W, FIGHTER_SIZE, TICK_HZ } from './field';
 export type { ArenaFighter, Fire, Shot, Vec } from './field';
@@ -29,8 +30,16 @@ export const BURST_TICKS = 20;
 export const OUTRO_TICKS = 90;
 const START_INSET = 60;
 
+/**
+ * compass: the top-down view's keys move up/left/down/right on screen.
+ * tank: the first-person view's keys walk forwards/backwards and turn (hot-seat 3D: one keyboard, no mouse).
+ * fps: first-person shooter (online 3D): the mouse turns, keys walk and strafe.
+ */
+export type Steering = 'compass' | 'tank' | 'fps';
+
 export interface ArenaState extends Field {
   readonly tick: number;
+  readonly steering: Steering;
   readonly attackerSide: Side;
   /** Tick on which a fighter fell; null while the fight is on. */
   readonly endedAt: number | null;
@@ -61,6 +70,7 @@ function createFighter(piece: Piece, opponent: Piece, square: Pos, cycle: Cycle,
     pos: startPos(piece.side),
     facing: { x: piece.side === 'light' ? 1 : -1, y: 0 },
     heading: piece.side === 'light' ? 1 : -1,
+    angle: startAngle(piece.side === 'light'),
   };
 }
 
@@ -68,7 +78,7 @@ function createFighter(piece: Piece, opponent: Piece, square: Pos, cycle: Cycle,
 export const arenaSeed = (state: GameState, square: Pos): number =>
   state.turnNumber * 1000 + square.col * 10 + square.row;
 
-export function createArena(state: GameState, battle: Battle): ArenaState {
+export function createArena(state: GameState, battle: Battle, steering: Steering = 'compass'): ArenaState {
   const attacker = requirePiece(state, battle.attackerId);
   const defender = requirePiece(state, battle.defenderId);
   const ceiling = (p: Piece, opponent: Piece): number =>
@@ -77,6 +87,7 @@ export function createArena(state: GameState, battle: Battle): ArenaState {
   const d = createFighter(defender, attacker, battle.square, state.cycle, ceiling(defender, attacker));
   return {
     tick: 0,
+    steering,
     attackerSide: attacker.side,
     fighters: attacker.side === 'light' ? { light: a, dark: d } : { light: d, dark: a },
     shots: [],
@@ -100,17 +111,54 @@ const inputDir = (i: ArenaInput): Vec => ({
 });
 
 /** Moves one axis at a time so a fighter slides along obstacles instead of sticking. */
-function moveFighter(f: ArenaFighter, input: ArenaInput, obstacles: readonly Rect[]): ArenaFighter {
+function slide(pos: Vec, step: Vec, obstacles: readonly Rect[]): Vec {
+  const free = (p: Vec): boolean => !obstacles.some((o) => rectsOverlap(fighterRect(p), o));
+  const tryX = clampToArena({ x: pos.x + step.x, y: pos.y });
+  const afterX = free(tryX) ? tryX : pos;
+  const tryY = clampToArena({ x: afterX.x, y: afterX.y + step.y });
+  return free(tryY) ? tryY : afterX;
+}
+
+function moveCompass(f: ArenaFighter, input: ArenaInput, obstacles: readonly Rect[]): ArenaFighter {
   const dir = inputDir(input);
   if (dir.x === 0 && dir.y === 0) return f;
   // Math.sqrt is exactly rounded everywhere; Math.hypot may differ between browsers and desync play.
   const len = Math.sqrt(dir.x * dir.x + dir.y * dir.y);
-  const free = (p: Vec): boolean => !obstacles.some((o) => rectsOverlap(fighterRect(p), o));
-  const tryX = clampToArena({ x: f.pos.x + (dir.x / len) * MOVE_SPEED, y: f.pos.y });
-  const afterX = free(tryX) ? tryX : f.pos;
-  const tryY = clampToArena({ x: afterX.x, y: afterX.y + (dir.y / len) * MOVE_SPEED });
+  const facing = { x: dir.x / len, y: dir.y / len };
   const heading = dir.x === 0 ? f.heading : dir.x > 0 ? 1 : -1;
-  return { ...f, pos: free(tryY) ? tryY : afterX, facing: { x: dir.x / len, y: dir.y / len }, heading };
+  return { ...f, pos: slide(f.pos, { x: facing.x * MOVE_SPEED, y: facing.y * MOVE_SPEED }, obstacles), facing, heading };
+}
+
+/** Turns first, then walks along the new facing; backing up keeps the facing. */
+function moveTank(f: ArenaFighter, input: ArenaInput, obstacles: readonly Rect[]): ArenaFighter {
+  const angle = turn(f.angle, input);
+  const facing = directionOf(angle);
+  const speed = walk(input) * MOVE_SPEED;
+  const pos = speed === 0 ? f.pos : slide(f.pos, { x: facing.x * speed, y: facing.y * speed }, obstacles);
+  const heading = facing.x === 0 ? f.heading : facing.x > 0 ? 1 : -1;
+  return { ...f, angle, facing, heading, pos };
+}
+
+/** Mouse turns first; then forwards/backwards plus strafing, at the same speed in every direction. */
+function moveFps(f: ArenaFighter, input: ArenaInput, obstacles: readonly Rect[]): ArenaFighter {
+  const angle = turnBy(f.angle, input.turn);
+  const facing = directionOf(angle);
+  const heading = facing.x === 0 ? f.heading : facing.x > 0 ? 1 : -1;
+  const ahead = walk(input);
+  const side = strafe(input);
+  if (ahead === 0 && side === 0) return { ...f, angle, facing, heading };
+  // Diagonals are scaled by an exact constant so walking + strafing is no faster than either alone.
+  const k = (ahead !== 0 && side !== 0 ? Math.SQRT1_2 : 1) * MOVE_SPEED;
+  const step = { x: (facing.x * ahead - facing.y * side) * k, y: (facing.y * ahead + facing.x * side) * k };
+  return { ...f, angle, facing, heading, pos: slide(f.pos, step, obstacles) };
+}
+
+function moveFighter(steering: Steering, f: ArenaFighter, input: ArenaInput, obstacles: readonly Rect[]): ArenaFighter {
+  switch (steering) {
+    case 'tank': return moveTank(f, input, obstacles);
+    case 'fps': return moveFps(f, input, obstacles);
+    case 'compass': return moveCompass(f, input, obstacles);
+  }
 }
 
 const obstaclesFor = (f: ArenaFighter, boulders: readonly Boulder[], other: ArenaFighter): Rect[] =>
@@ -175,8 +223,8 @@ const someoneFell = (f: Fighters): boolean => f.light.hp <= 0 || f.dark.hp <= 0;
 export function stepArena(s: ArenaState, inputs: ArenaInputs): ArenaState {
   const tick = s.tick + 1;
   if (s.endedAt !== null) return { ...s, tick };
-  const light0 = moveFighter(s.fighters.light, inputs.light, obstaclesFor(s.fighters.light, s.boulders, s.fighters.dark));
-  const dark0 = moveFighter(s.fighters.dark, inputs.dark, obstaclesFor(s.fighters.dark, s.boulders, light0));
+  const light0 = moveFighter(s.steering, s.fighters.light, inputs.light, obstaclesFor(s.fighters.light, s.boulders, s.fighters.dark));
+  const dark0 = moveFighter(s.steering, s.fighters.dark, inputs.dark, obstaclesFor(s.fighters.dark, s.boulders, light0));
   const la = attack(light0, inputs.light, s.nextId);
   const da = attack(dark0, inputs.dark, s.nextId + 1);
   const newShots = [la.shot, da.shot].filter((x): x is Shot => x !== null);

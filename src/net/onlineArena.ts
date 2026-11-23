@@ -1,5 +1,6 @@
 import type { ArenaDriver } from '../arenaScreen';
 import type { ArenaInput } from '../combat/controls';
+import { NO_INPUT } from '../combat/controls';
 import { localInput } from '../combat/controls';
 import type { Side } from '../core/types';
 import type { Lockstep } from './lockstep';
@@ -46,13 +47,15 @@ export function onlineDriver(
   const { delay } = book.get(arena);
   let sentUpTo = delay; // ticks 1..delay are implicitly "no input"
   return {
-    inputsFor(tick, pressed) {
+    inputsFor(tick, controls) {
       const target = tick + delay;
       if (target > sentUpTo) {
-        const input = localInput(pressed);
+        const input = localInput(controls);
         for (let t = sentUpTo + 1; t <= target; t++) {
-          book.record(arena, local, t, input);
-          send(t, input);
+          // Held keys repeat on every tick sent now; the mouse turn happens once, on the first.
+          const sent = t === sentUpTo + 1 ? input : { ...input, turn: NO_INPUT.turn };
+          book.record(arena, local, t, sent);
+          send(t, sent);
         }
         sentUpTo = target;
       }

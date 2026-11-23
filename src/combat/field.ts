@@ -35,6 +35,8 @@ export interface ArenaFighter {
   readonly facing: Vec;
   /** Last horizontal direction moved (1 = right); vertical moves keep it. Sprites face this way. */
   readonly heading: 1 | -1;
+  /** Index into steering DIRECTIONS; only used (and kept in step with facing) by tank steering. */
+  readonly angle: number;
 }
 
 export interface Shot {

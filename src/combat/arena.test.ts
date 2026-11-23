@@ -10,6 +10,7 @@ import {
 import { BOULDER_HP } from './boulders';
 import type { ArenaInput, ArenaInputs } from './controls';
 import { NO_INPUT } from './controls';
+import { DIRECTION_COUNT, TURN_STEP } from './steering';
 
 const IDLE: ArenaInputs = { light: NO_INPUT, dark: NO_INPUT };
 const lightDoes = (i: Partial<ArenaInput>): ArenaInputs => ({ light: { ...NO_INPUT, ...i }, dark: NO_INPUT });
@@ -203,5 +204,67 @@ describe('ending', () => {
     expect(a.fighters.dark.hp).toBe(UNITS.golem.maxHp);
     const ended = { ...a, endedAt: 5, fighters: { ...a.fighters, light: { ...a.fighters.light, hp: 0 } } };
     expect(arenaOutcome(ended)!.defenderHp).toBe(UNITS.shapeshifter.maxHp);
+  });
+});
+
+describe('tank steering (3D view)', () => {
+  const tank = (s: ArenaState): ArenaState => ({ ...s, steering: 'tank' });
+
+  it('up walks forwards along the facing, down backs up without turning', () => {
+    const fwd = stepArena(tank(duel('archer', 'goblin')), lightDoes({ up: true }));
+    expect(fwd.fighters.light.pos).toEqual({ x: 300 + MOVE_SPEED, y: 300 });
+    const back = stepArena(tank(duel('archer', 'goblin')), lightDoes({ down: true }));
+    expect(back.fighters.light.pos).toEqual({ x: 300 - MOVE_SPEED, y: 300 });
+    expect(back.fighters.light.facing).toEqual({ x: 1, y: 0 });
+  });
+
+  it('left/right turn in place; a quarter turn later it walks down the screen', () => {
+    const q = DIRECTION_COUNT / 4 / TURN_STEP;
+    const turned = run(tank(duel('archer', 'goblin')), lightDoes({ right: true }), q);
+    expect(turned.fighters.light.pos).toEqual({ x: 300, y: 300 });
+    expect(turned.fighters.light.facing).toEqual({ x: 0, y: 1 });
+    const walked = stepArena(turned, lightDoes({ up: true }));
+    expect(walked.fighters.light.pos).toEqual({ x: 300, y: 300 + MOVE_SPEED });
+  });
+
+  it('shots fly along an in-between angle', () => {
+    const s = stepArena(tank(duel('archer', 'goblin')), lightDoes({ right: true, fire: true }));
+    const shot = s.shots[0]!;
+    expect(shot.vel.y).toBeGreaterThan(0);
+    expect(shot.vel.x).toBeGreaterThan(shot.vel.y);
+  });
+
+  it('keeps the old compass movement unless asked', () => {
+    const s = stepArena(duel('archer', 'goblin'), lightDoes({ down: true }));
+    expect(s.steering).toBe('compass');
+    expect(s.fighters.light.pos).toEqual({ x: 300, y: 300 + MOVE_SPEED });
+  });
+});
+
+describe('fps steering (online 3D: mouse aims, keys walk and strafe)', () => {
+  const fps = (s: ArenaState): ArenaState => ({ ...s, steering: 'fps' });
+  const Q = DIRECTION_COUNT / 4;
+
+  it('the mouse turn sets the facing; A/D strafe instead of turning', () => {
+    const turned = stepArena(fps(duel('archer', 'goblin')), lightDoes({ turn: Q }));
+    expect(turned.fighters.light.facing).toEqual({ x: 0, y: 1 });
+    expect(turned.fighters.light.pos).toEqual({ x: 300, y: 300 });
+    const strafed = stepArena(fps(duel('archer', 'goblin')), lightDoes({ right: true }));
+    expect(strafed.fighters.light.facing).toEqual({ x: 1, y: 0 });
+    expect(strafed.fighters.light.pos).toEqual({ x: 300, y: 300 + MOVE_SPEED });
+  });
+
+  it('walking while strafing is no faster than either', () => {
+    const s = stepArena(fps(duel('archer', 'goblin')), lightDoes({ up: true, left: true }));
+    const { x, y } = s.fighters.light.pos;
+    expect(x - 300).toBeCloseTo(MOVE_SPEED * Math.SQRT1_2, 12);
+    expect(y - 300).toBeCloseTo(-MOVE_SPEED * Math.SQRT1_2, 12);
+  });
+
+  it('turns either way, wrapping, and ignores a non-integer turn from the wire', () => {
+    const left = stepArena(fps(duel('archer', 'goblin')), lightDoes({ turn: -Q }));
+    expect(left.fighters.light.facing).toEqual({ x: 0, y: -1 });
+    const junk = stepArena(fps(duel('archer', 'goblin')), lightDoes({ turn: 0.5 }));
+    expect(junk.fighters.light.angle).toBe(0);
   });
 });
